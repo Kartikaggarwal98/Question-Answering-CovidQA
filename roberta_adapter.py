@@ -65,11 +65,11 @@ assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 tokenizer("What is your name?", "My name is Sylvain.")
 
 
-data_lens = []
-for i, example in enumerate(ds["train"]):
-    data_lens.append(len(tokenizer(example["question"], example["context"])["input_ids"]))
+# data_lens = []
+# for i, example in enumerate(ds["train"]):
+#     data_lens.append(len(tokenizer(example["question"], example["context"])["input_ids"]))
 
-pd.DataFrame(data_lens).describe()
+# pd.DataFrame(data_lens).describe()
 
 pad_on_right = tokenizer.padding_side == "right"
 def prepare_train_features(examples):
@@ -150,7 +150,7 @@ def prepare_train_features(examples):
     return tokenized_examples
 
 
-features = prepare_train_features(ds['train'][:5])
+# features = prepare_train_features(ds['train'][:5])
 
 tokenized_datasets = ds.map(prepare_train_features, batched=True, remove_columns=ds["train"].column_names)
 
@@ -168,7 +168,7 @@ adap_name = 'covid-qa_adap'  ### this is a new adapter (training from scratch)
 model.add_adapter(adap_name) # I am not using any pretrained adapter from adapterhub
 model.train_adapter(adap_name)
 
-model.save_all_adapters('.',adap_name)
+# model.save_all_adapters('.',adap_name)
 # model.load_adapter(adap_name)
 
 
@@ -186,7 +186,7 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=3,
+    num_train_epochs=1,
     weight_decay=0.01,
     # push_to_hub=True,
 )
@@ -201,18 +201,16 @@ trainer = AdapterTrainer(
     eval_dataset=tokenized_datasets["validation"],
     data_collator=data_collator,
     tokenizer=tokenizer,
+    # load_best_model_at_end = True
 )
 
-trainer.train()
-
-
-trainer.save_model("covid-adapter")
-
+# trainer.train()
+# trainer.save_model(f'{model_name}-adapter-squad')
 
 import torch
-model = AutoModelForQuestionAnswering.from_pretrained('covid-adapter')
+# model = AutoModelForQuestionAnswering.from_pretrained(f'{model_name}-adapter-squad/covid-qa-adap')
 
-model.load_adapter(adap_name)
+model.load_adapter(f'{model_name}-adapter-squad/',adap_name)
 
 
 model.set_active_adapters(adap_name)
@@ -381,6 +379,13 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size 
 
 ##### VALIDATION PREDICTION ##########
 final_predictions = postprocess_qa_predictions(ds["validation"], validation_features, raw_predictions.predictions)
+
+
+print (final_predictions.items())
+with open('predict_valid_ft.txt','w') as f:
+    for _,p in final_predictions.items():
+        f.write(p+'\n')
+
 
 metric = datasets.load_metric("squad_v2" if squad_v2 else "squad")
 if squad_v2:
